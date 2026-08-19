@@ -1,0 +1,1159 @@
+// MainActivity.java
+
+package com.example.lab2;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.widget.Button;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+
+public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+
+        Button addTaskButton = findViewById(R.id.btnAddTask);
+        Button viewTasksButton = findViewById(R.id.btnViewTasks);
+        Button statisticsButton = findViewById(R.id.btnStatistics);
+
+        addTaskButton.setOnClickListener(v -> {
+            Intent intent = new Intent(
+                    MainActivity.this,
+                    AddTaskActivity.class
+            );
+            startActivity(intent);
+        });
+
+        viewTasksButton.setOnClickListener(v -> {
+            Intent intent = new Intent(
+                    MainActivity.this,
+                    TaskListActivity.class
+            );
+            startActivity(intent);
+        });
+
+        statisticsButton.setOnClickListener(v -> {
+            Intent intent = new Intent(
+                    MainActivity.this,
+                    StatisticsActivity.class
+            );
+            startActivity(intent);
+        });
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+
+        getMenuInflater().inflate(
+                R.menu.main_menu,
+                menu
+        );
+
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(
+            @NonNull MenuItem item) {
+
+        int itemId = item.getItemId();
+
+        if (itemId == R.id.menu_add_task) {
+
+            Intent intent = new Intent(
+                    MainActivity.this,
+                    AddTaskActivity.class
+            );
+
+            startActivity(intent);
+
+            return true;
+
+        } else if (itemId == R.id.menu_view_tasks) {
+
+            Intent intent = new Intent(
+                    MainActivity.this,
+                    TaskListActivity.class
+            );
+
+            startActivity(intent);
+
+            return true;
+
+        } else if (itemId == R.id.menu_statistics) {
+
+            Intent intent = new Intent(
+                    MainActivity.this,
+                    StatisticsActivity.class
+            );
+
+            startActivity(intent);
+
+            return true;
+
+        } else if (itemId == R.id.menu_about) {
+
+            Toast.makeText(
+                    this,
+                    "Student Task & Study Planner",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return true;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+}
+
+// AddTaskActivity
+
+package com.example.lab2;
+
+import android.os.Bundle;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+public class AddTaskActivity extends AppCompatActivity {
+
+    EditText titleInput;
+    EditText descriptionInput;
+    EditText subjectInput;
+
+    Spinner prioritySpinner;
+
+    RadioGroup statusGroup;
+
+    Button saveButton;
+
+    DatabaseHelper databaseHelper;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        setContentView(R.layout.activity_add_task);
+
+        titleInput = findViewById(R.id.txtTitle);
+        descriptionInput = findViewById(R.id.txtDescription);
+        subjectInput = findViewById(R.id.txtSubject);
+
+        prioritySpinner = findViewById(R.id.spinnerPriority);
+
+        statusGroup = findViewById(R.id.radioStatus);
+
+        saveButton = findViewById(R.id.btnSaveTask);
+
+        databaseHelper = new DatabaseHelper(this);
+
+        // Spinner options
+        String[] priorities = {
+                "Low",
+                "Medium",
+                "High"
+        };
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                priorities
+        );
+
+        adapter.setDropDownViewResource(
+                android.R.layout.simple_spinner_dropdown_item
+        );
+
+        prioritySpinner.setAdapter(adapter);
+
+        // Save button
+        saveButton.setOnClickListener(v -> {
+
+            String title = titleInput.getText().toString().trim();
+
+            String description =
+                    descriptionInput.getText().toString().trim();
+
+            String subject =
+                    subjectInput.getText().toString().trim();
+
+            String priority =
+                    prioritySpinner.getSelectedItem().toString();
+
+            int selectedId =
+                    statusGroup.getCheckedRadioButtonId();
+
+            if (title.isEmpty()) {
+
+                Toast.makeText(
+                        this,
+                        "Please enter a task title",
+                        Toast.LENGTH_SHORT
+                ).show();
+
+                return;
+            }
+
+            RadioButton selectedRadio =
+                    findViewById(selectedId);
+
+            String status =
+                    selectedRadio.getText().toString();
+
+            Task task = new Task(
+                    0,
+                    title,
+                    description,
+                    subject,
+                    priority,
+                    status
+            );
+
+            long result =
+                    databaseHelper.addTask(task);
+
+            if (result != -1) {
+
+                Toast.makeText(
+                        this,
+                        "Task saved successfully!",
+                        Toast.LENGTH_SHORT
+                ).show();
+
+                finish();
+
+            } else {
+
+                Toast.makeText(
+                        this,
+                        "Error saving task",
+                        Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
+    }
+}
+
+// TaskListActivity.java
+
+package com.example.lab2;
+
+import android.content.Intent;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Bundle;
+import android.view.ContextMenu;
+import android.view.Gravity;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.TextView;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import java.util.ArrayList;
+
+public class TaskListActivity extends AppCompatActivity {
+
+    DatabaseHelper databaseHelper;
+    RecyclerView taskContainer;
+    TaskAdapter taskAdapter;
+
+    int selectedTaskId;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        setContentView(R.layout.activity_task_list);
+
+        databaseHelper = new DatabaseHelper(this);
+
+        taskContainer = findViewById(R.id.taskContainer);
+
+        taskContainer.setLayoutManager(
+                new LinearLayoutManager(this)
+        );
+
+        displayTasks();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        displayTasks();
+    }
+
+    private void displayTasks() {
+
+        ArrayList<Task> tasks = databaseHelper.getAllTasks();
+
+        taskAdapter = new TaskAdapter(this, tasks);
+
+        taskContainer.setAdapter(taskAdapter);
+    }
+
+    // Used by Popup Menu after deleting a task
+    public void refreshTasks() {
+        displayTasks();
+    }
+
+    // Called when a task is long-clicked
+    public void showTaskContextMenu(View view, int taskId) {
+
+        selectedTaskId = taskId;
+
+        registerForContextMenu(view);
+
+        openContextMenu(view);
+    }
+
+    @Override
+    public void onCreateContextMenu(
+            ContextMenu menu,
+            View v,
+            ContextMenu.ContextMenuInfo menuInfo) {
+
+        super.onCreateContextMenu(menu, v, menuInfo);
+
+        menu.setHeaderTitle("Task Options");
+
+        getMenuInflater().inflate(
+                R.menu.task_context_menu,
+                menu
+        );
+    }
+
+    @Override
+    public boolean onContextItemSelected(MenuItem item) {
+
+        if (item.getItemId() == R.id.context_edit_task) {
+
+            Intent intent = new Intent(
+                    TaskListActivity.this,
+                    TaskDetailsActivity.class
+            );
+
+            intent.putExtra(
+                    "task_id",
+                    selectedTaskId
+            );
+
+            startActivity(intent);
+
+            return true;
+
+        } else if (item.getItemId() == R.id.context_delete_task) {
+
+            databaseHelper.deleteTask(selectedTaskId);
+
+            displayTasks();
+
+            return true;
+        }
+
+        return super.onContextItemSelected(item);
+    }
+
+    private void addCell(
+            android.widget.LinearLayout row,
+            String text,
+            int width
+    ) {
+
+        TextView cell = new TextView(this);
+
+        cell.setText(text);
+        cell.setTextSize(16);
+        cell.setPadding(10, 15, 10, 15);
+        cell.setGravity(Gravity.CENTER_VERTICAL);
+        cell.setTypeface(Typeface.DEFAULT);
+
+        GradientDrawable cellBackground = new GradientDrawable();
+
+        cellBackground.setColor(
+                android.graphics.Color.parseColor("#DDE5C8")
+        );
+
+        cellBackground.setStroke(
+                dpToPx(1),
+                android.graphics.Color.parseColor("#9A9A9A")
+        );
+
+        cell.setBackground(cellBackground);
+
+        android.widget.LinearLayout.LayoutParams params =
+                new android.widget.LinearLayout.LayoutParams(
+                        dpToPx(width),
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+
+        cell.setLayoutParams(params);
+
+        row.addView(cell);
+    }
+
+    private int dpToPx(int dp) {
+
+        float density = getResources()
+                .getDisplayMetrics()
+                .density;
+
+        return (int) (dp * density + 0.5f);
+    }
+}
+
+// TaskDetailsActivity.java
+
+package com.example.lab2;
+
+import android.os.Bundle;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.Spinner;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+public class TaskDetailsActivity extends AppCompatActivity {
+
+    DatabaseHelper databaseHelper;
+
+    EditText txtTitle;
+    EditText txtDescription;
+    EditText txtSubject;
+
+    Spinner spinnerPriority;
+
+    RadioGroup radioStatus;
+
+    Button btnUpdateTask;
+    Button btnDeleteTask;
+
+    int taskId;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        setContentView(R.layout.activity_task_details);
+
+        databaseHelper = new DatabaseHelper(this);
+
+        txtTitle = findViewById(R.id.txtTitle);
+        txtDescription = findViewById(R.id.txtDescription);
+        txtSubject = findViewById(R.id.txtSubject);
+
+        spinnerPriority = findViewById(R.id.spinnerPriority);
+
+        radioStatus = findViewById(R.id.radioStatus);
+
+        btnUpdateTask = findViewById(R.id.btnUpdateTask);
+        btnDeleteTask = findViewById(R.id.btnDeleteTask);
+
+        // Priority Spinner
+        String[] priorities = {
+                "Low",
+                "Medium",
+                "High"
+        };
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                priorities
+        );
+
+        adapter.setDropDownViewResource(
+                android.R.layout.simple_spinner_dropdown_item
+        );
+
+        spinnerPriority.setAdapter(adapter);
+
+        // Get task ID
+        taskId = getIntent().getIntExtra("task_id", -1);
+
+        // Load task information
+        loadTask();
+
+        // Update
+        btnUpdateTask.setOnClickListener(v -> updateTask());
+
+        // Delete
+        btnDeleteTask.setOnClickListener(v -> deleteTask());
+    }
+
+    private void loadTask() {
+
+        for (Task task : databaseHelper.getAllTasks()) {
+
+            if (task.getId() == taskId) {
+
+                txtTitle.setText(task.getTitle());
+
+                txtDescription.setText(task.getDescription());
+
+                txtSubject.setText(task.getSubject());
+
+                // Set priority
+                if (task.getPriority().equals("Low")) {
+
+                    spinnerPriority.setSelection(0);
+
+                } else if (task.getPriority().equals("Medium")) {
+
+                    spinnerPriority.setSelection(1);
+
+                } else if (task.getPriority().equals("High")) {
+
+                    spinnerPriority.setSelection(2);
+                }
+
+                // Set status
+                if (task.getStatus().equals("Not Started")) {
+
+                    radioStatus.check(R.id.radioNotStarted);
+
+                } else if (task.getStatus().equals("In Progress")) {
+
+                    radioStatus.check(R.id.radioInProgress);
+
+                } else if (task.getStatus().equals("Completed")) {
+
+                    radioStatus.check(R.id.radioCompleted);
+                }
+
+                break;
+            }
+        }
+    }
+
+    private void updateTask() {
+
+        String title =
+                txtTitle.getText().toString().trim();
+
+        String description =
+                txtDescription.getText().toString().trim();
+
+        String subject =
+                txtSubject.getText().toString().trim();
+
+        String priority =
+                spinnerPriority.getSelectedItem().toString();
+
+        int selectedRadioId =
+                radioStatus.getCheckedRadioButtonId();
+
+        RadioButton selectedRadioButton =
+                findViewById(selectedRadioId);
+
+        String status =
+                selectedRadioButton.getText().toString();
+
+        Task task = new Task(
+                taskId,
+                title,
+                description,
+                subject,
+                priority,
+                status
+        );
+
+        int result =
+                databaseHelper.updateTask(task);
+
+        if (result > 0) {
+
+            Toast.makeText(
+                    this,
+                    "Task updated successfully!",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            finish();
+
+        } else {
+
+            Toast.makeText(
+                    this,
+                    "UPDATE FAILED - ID: " + taskId,
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void deleteTask() {
+
+        int result =
+                databaseHelper.deleteTask(taskId);
+
+        if (result > 0) {
+
+            Toast.makeText(
+                    this,
+                    "Task deleted successfully!",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            finish();
+
+        } else {
+
+            Toast.makeText(
+                    this,
+                    "DELETE FAILED",
+                    Toast.LENGTH_SHORT
+            ).show();
+        }
+    }
+}
+
+// TaskAdapter.java
+
+package com.example.lab2;
+
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.view.LayoutInflater;
+import android.view.MenuInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.PopupMenu;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
+
+import java.util.ArrayList;
+
+public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder> {
+
+    private Context context;
+    private ArrayList<Task> tasks;
+
+    public TaskAdapter(Context context, ArrayList<Task> tasks) {
+        this.context = context;
+        this.tasks = tasks;
+    }
+
+    @NonNull
+    @Override
+    public TaskViewHolder onCreateViewHolder(
+            @NonNull ViewGroup parent,
+            int viewType) {
+
+        View view = LayoutInflater.from(context)
+                .inflate(R.layout.task_row, parent, false);
+
+        return new TaskViewHolder(view);
+    }
+
+    @Override
+    public void onBindViewHolder(
+            @NonNull TaskViewHolder holder,
+            int position) {
+
+        Task task = tasks.get(position);
+
+        holder.txtTitle.setText(task.getTitle());
+        holder.txtDescription.setText(task.getDescription());
+        holder.txtSubject.setText(task.getSubject());
+        holder.txtPriority.setText(task.getPriority());
+        holder.txtStatus.setText(task.getStatus());
+
+        setCellBorder(holder.txtTitle);
+        setCellBorder(holder.txtDescription);
+        setCellBorder(holder.txtSubject);
+        setCellBorder(holder.txtPriority);
+        setCellBorder(holder.txtStatus);
+
+        // Normal click = open task details
+        holder.itemView.setOnClickListener(v -> {
+
+            Intent intent = new Intent(
+                    context,
+                    TaskDetailsActivity.class
+            );
+
+            intent.putExtra("task_id", task.getId());
+
+            context.startActivity(intent);
+        });
+
+        // Long click = Context Menu
+        holder.itemView.setOnLongClickListener(v -> {
+
+            if (context instanceof TaskListActivity) {
+
+                ((TaskListActivity) context)
+                        .showTaskContextMenu(
+                                holder.itemView,
+                                task.getId()
+                        );
+            }
+
+            return true;
+        });
+
+        // Three dots = Popup Menu
+        holder.txtRowMenu.setOnClickListener(v -> {
+
+            PopupMenu popupMenu = new PopupMenu(
+                    context,
+                    holder.txtRowMenu
+            );
+
+            MenuInflater inflater = popupMenu.getMenuInflater();
+
+            inflater.inflate(
+                    R.menu.task_popup_menu,
+                    popupMenu.getMenu()
+            );
+
+            popupMenu.setOnMenuItemClickListener(item -> {
+
+                if (item.getItemId() == R.id.popup_edit_task) {
+
+                    Intent intent = new Intent(
+                            context,
+                            TaskDetailsActivity.class
+                    );
+
+                    intent.putExtra(
+                            "task_id",
+                            task.getId()
+                    );
+
+                    context.startActivity(intent);
+
+                    return true;
+
+                } else if (item.getItemId() == R.id.popup_delete_task) {
+
+                    if (context instanceof TaskListActivity) {
+
+                        DatabaseHelper databaseHelper =
+                                new DatabaseHelper(context);
+
+                        databaseHelper.deleteTask(
+                                task.getId()
+                        );
+
+                        Toast.makeText(
+                                context,
+                                "Task deleted successfully!",
+                                Toast.LENGTH_SHORT
+                        ).show();
+
+                        ((TaskListActivity) context)
+                                .refreshTasks();
+                    }
+
+                    return true;
+                }
+
+                return false;
+            });
+
+            popupMenu.show();
+        });
+    }
+
+    @Override
+    public int getItemCount() {
+        return tasks.size();
+    }
+
+    private void setCellBorder(TextView cell) {
+
+        GradientDrawable background = new GradientDrawable();
+
+        background.setColor(
+                Color.parseColor("#DDE5C8")
+        );
+
+        background.setStroke(
+                dpToPx(1),
+                Color.parseColor("#9A9A9A")
+        );
+
+        cell.setBackground(background);
+    }
+
+    private int dpToPx(int dp) {
+
+        float density = context
+                .getResources()
+                .getDisplayMetrics()
+                .density;
+
+        return (int) (dp * density + 0.5f);
+    }
+
+    public static class TaskViewHolder
+            extends RecyclerView.ViewHolder {
+
+        TextView txtTitle;
+        TextView txtDescription;
+        TextView txtSubject;
+        TextView txtPriority;
+        TextView txtStatus;
+        TextView txtRowMenu;
+
+        public TaskViewHolder(@NonNull View itemView) {
+            super(itemView);
+
+            txtTitle = itemView.findViewById(R.id.txtRowTitle);
+            txtDescription = itemView.findViewById(R.id.txtRowDescription);
+            txtSubject = itemView.findViewById(R.id.txtRowSubject);
+            txtPriority = itemView.findViewById(R.id.txtRowPriority);
+            txtStatus = itemView.findViewById(R.id.txtRowStatus);
+            txtRowMenu = itemView.findViewById(R.id.txtRowMenu);
+        }
+    }
+}
+
+// Task.java
+
+package com.example.lab2;
+
+public class Task {
+
+    private int id;
+    private String title;
+    private String description;
+    private String subject;
+    private String priority;
+    private String status;
+
+    public Task() {
+    }
+
+    public Task(int id, String title, String description,
+                String subject, String priority, String status) {
+
+        this.id = id;
+        this.title = title;
+        this.description = description;
+        this.subject = subject;
+        this.priority = priority;
+        this.status = status;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public void setSubject(String subject) {
+        this.subject = subject;
+    }
+
+    public String getPriority() {
+        return priority;
+    }
+
+    public void setPriority(String priority) {
+        this.priority = priority;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+}
+
+// StatisticsActivity.java
+
+package com.example.lab2;
+
+import android.os.Bundle;
+import android.widget.TextView;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import java.util.ArrayList;
+
+public class StatisticsActivity extends AppCompatActivity {
+
+    DatabaseHelper databaseHelper;
+
+    TextView txtTotalTasks;
+    TextView txtCompleted;
+    TextView txtInProgress;
+    TextView txtNotStarted;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        setContentView(R.layout.activity_statistics);
+
+        databaseHelper = new DatabaseHelper(this);
+
+        txtTotalTasks = findViewById(R.id.txtTotalTasks);
+        txtCompleted = findViewById(R.id.txtCompleted);
+        txtInProgress = findViewById(R.id.txtInProgress);
+        txtNotStarted = findViewById(R.id.txtNotStarted);
+
+        loadStatistics();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadStatistics();
+    }
+
+    private void loadStatistics() {
+
+        ArrayList<Task> tasks = databaseHelper.getAllTasks();
+
+        int total = tasks.size();
+        int completed = 0;
+        int inProgress = 0;
+        int notStarted = 0;
+
+        for (Task task : tasks) {
+
+            if (task.getStatus().equals("Completed")) {
+
+                completed++;
+
+            } else if (task.getStatus().equals("In Progress")) {
+
+                inProgress++;
+
+            } else if (task.getStatus().equals("Not Started")) {
+
+                notStarted++;
+            }
+        }
+
+        txtTotalTasks.setText("Total Tasks: " + total);
+        txtCompleted.setText("Completed: " + completed);
+        txtInProgress.setText("In Progress: " + inProgress);
+        txtNotStarted.setText("Not Started: " + notStarted);
+    }
+}
+
+// DatabaseHelper.java
+
+package com.example.lab2;
+
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+
+import java.util.ArrayList;
+
+public class DatabaseHelper extends SQLiteOpenHelper {
+
+    private static final String DATABASE_NAME = "StudyPlanner.db";
+    private static final int DATABASE_VERSION = 1;
+
+    private static final String TABLE_TASKS = "tasks";
+
+    private static final String COLUMN_ID = "id";
+    private static final String COLUMN_TITLE = "title";
+    private static final String COLUMN_DESCRIPTION = "description";
+    private static final String COLUMN_SUBJECT = "subject";
+    private static final String COLUMN_PRIORITY = "priority";
+    private static final String COLUMN_STATUS = "status";
+
+    public DatabaseHelper(Context context) {
+        super(context, DATABASE_NAME, null, DATABASE_VERSION);
+    }
+
+    @Override
+    public void onCreate(SQLiteDatabase db) {
+
+        String createTable = "CREATE TABLE " + TABLE_TASKS + " (" +
+                COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COLUMN_TITLE + " TEXT, " +
+                COLUMN_DESCRIPTION + " TEXT, " +
+                COLUMN_SUBJECT + " TEXT, " +
+                COLUMN_PRIORITY + " TEXT, " +
+                COLUMN_STATUS + " TEXT)";
+
+        db.execSQL(createTable);
+    }
+
+    @Override
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_TASKS);
+        onCreate(db);
+    }
+
+    // CREATE
+    public long addTask(Task task) {
+
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        ContentValues values = new ContentValues();
+
+        values.put(COLUMN_TITLE, task.getTitle());
+        values.put(COLUMN_DESCRIPTION, task.getDescription());
+        values.put(COLUMN_SUBJECT, task.getSubject());
+        values.put(COLUMN_PRIORITY, task.getPriority());
+        values.put(COLUMN_STATUS, task.getStatus());
+
+        long result = db.insert(TABLE_TASKS, null, values);
+
+        db.close();
+
+        return result;
+    }
+
+    // READ
+    public ArrayList<Task> getAllTasks() {
+
+        ArrayList<Task> taskList = new ArrayList<>();
+
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT * FROM " + TABLE_TASKS,
+                null
+        );
+
+        if (cursor.moveToFirst()) {
+
+            do {
+
+                int id = cursor.getInt(
+                        cursor.getColumnIndexOrThrow(COLUMN_ID)
+                );
+
+                String title = cursor.getString(
+                        cursor.getColumnIndexOrThrow(COLUMN_TITLE)
+                );
+
+                String description = cursor.getString(
+                        cursor.getColumnIndexOrThrow(COLUMN_DESCRIPTION)
+                );
+
+                String subject = cursor.getString(
+                        cursor.getColumnIndexOrThrow(COLUMN_SUBJECT)
+                );
+
+                String priority = cursor.getString(
+                        cursor.getColumnIndexOrThrow(COLUMN_PRIORITY)
+                );
+
+                String status = cursor.getString(
+                        cursor.getColumnIndexOrThrow(COLUMN_STATUS)
+                );
+
+                Task task = new Task(
+                        id,
+                        title,
+                        description,
+                        subject,
+                        priority,
+                        status
+                );
+
+                taskList.add(task);
+
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        db.close();
+
+        return taskList;
+    }
+
+    // UPDATE
+    public int updateTask(Task task) {
+
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        ContentValues values = new ContentValues();
+
+        values.put(COLUMN_TITLE, task.getTitle());
+        values.put(COLUMN_DESCRIPTION, task.getDescription());
+        values.put(COLUMN_SUBJECT, task.getSubject());
+        values.put(COLUMN_PRIORITY, task.getPriority());
+        values.put(COLUMN_STATUS, task.getStatus());
+
+        int result = db.update(
+                TABLE_TASKS,
+                values,
+                COLUMN_ID + "=?",
+                new String[]{String.valueOf(task.getId())}
+        );
+
+        db.close();
+
+        return result;
+    }
+
+    // DELETE
+    public int deleteTask(int id) {
+
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        int result = db.delete(
+                TABLE_TASKS,
+                COLUMN_ID + "=?",
+                new String[]{String.valueOf(id)}
+        );
+
+        db.close();
+
+        return result;
+    }
+}
